@@ -59,14 +59,19 @@ func main() {
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				fmt.Println("Envoy Added")
+				enqueue(obj)
+
 			},
 			UpdateFunc: func(old interface{}, cur interface{}) {
 				if !reflect.DeepEqual(old, cur) {
 					fmt.Println("Envoy updated")
+					enqueue(cur)
+
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
 				fmt.Println("Envoy deleted")
+				enqueue(obj)
 			},
 		},
 	)
@@ -79,4 +84,14 @@ func main() {
 		fmt.Println(("Error waiting for informer cache to sync"))
 	}
 
+}
+
+func enqueue(obj interface{}) {
+	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+	if err != nil {
+		fmt.Printf("Error obtaining key %v", err)
+		return
+	}
+
+	queue.Add(key)
 }
