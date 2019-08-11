@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
@@ -48,4 +50,33 @@ func createKubeClientSet() *client.Clientset {
 
 func main() {
 	cl = createKubeClientSet()
+	// Create A shared informer factory, then use that factory to create a informer for your custom type
+	sharedFactory = factory.NewSharedInformerFactory(cl, time.Second*30)
+	informer := sharedFactory.Example().V1().Envoys().Informer()
+
+	// Add informer event handlers to respond to changes in the resource, we can enqueue the new changes to the workqueue
+	informer.AddEventHandler(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				fmt.Println("Envoy Added")
+			},
+			UpdateFunc: func(old interface{}, cur interface{}) {
+				if !reflect.DeepEqual(old, cur) {
+					fmt.Println("Envoy updated")
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				fmt.Println("Envoy deleted")
+			},
+		},
+	)
+
+	// this starts all registered informers
+	sharedFactory.Start(stopCh)
+	fmt.Println("Informer Started..")
+
+	if !cache.WaitForCacheSync(stopCh, informer.HasSynced) {
+		fmt.Println(("Error waiting for informer cache to sync"))
+	}
+
 }
