@@ -1,3 +1,3 @@
 // +k8s:deepcopy-gen=package,register
-// +groupName=shawnrebello.com
+// +groupName=example.com
 package v1
