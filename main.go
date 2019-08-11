@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
+	v1 "github.com/starizard/kube-envoy-controller/pkg/api/example.com/v1"
 	client "github.com/starizard/kube-envoy-controller/pkg/client/clientset/versioned"
 	factory "github.com/starizard/kube-envoy-controller/pkg/client/informers/externalversions"
 )
@@ -84,6 +85,56 @@ func main() {
 		fmt.Println(("Error waiting for informer cache to sync"))
 	}
 
+	// Start controller loop
+	work()
+}
+
+func work() {
+	for {
+		key, shutdown := queue.Get()
+
+		if shutdown {
+			stopCh <- struct{}{}
+			return
+		}
+		var strKey string
+		var ok bool
+		if strKey, ok = key.(string); !ok {
+			fmt.Printf("\n Invalid key format %v", key)
+			return
+		}
+		processItem(strKey)
+	}
+}
+
+func processItem(key string) {
+	defer queue.Done(key)
+	fmt.Printf("\nProcessItem %v", key)
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		fmt.Printf("\nError splitting key into parts %v", err)
+		return
+	}
+	fmt.Printf("\nProcessing key %s %s", namespace, name)
+
+	//retrieve the object
+	obj, err := sharedFactory.Example().V1().Envoys().Lister().Envoys(namespace).Get(name)
+	if err != nil {
+		fmt.Printf("\nError getting object %s %s from api %s", namespace, name, err)
+	}
+
+	//Reconcile expected state with current state
+	if err := reconcile(obj); err != nil {
+		fmt.Printf("\nError reconciling object %v", err)
+
+		return
+	}
+}
+
+func reconcile(envoy *v1.Envoy) error {
+	fmt.Printf("\n Processing Envoy %s, %d, %s", envoy.Spec.Name, *envoy.Spec.Replicas, envoy.Spec.ConfigMapName)
+
+	return nil
 }
 
 func enqueue(obj interface{}) {
