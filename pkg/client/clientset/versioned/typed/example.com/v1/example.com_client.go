@@ -19,9 +19,11 @@ limitations under the License.
 package v1
 
 import (
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	rest "k8s.io/client-go/rest"
+
 	v1 "github.com/starizard/kube-envoy-controller/pkg/api/example.com/v1"
 	"github.com/starizard/kube-envoy-controller/pkg/client/clientset/versioned/scheme"
-	rest "k8s.io/client-go/rest"
 )
 
 type ExampleV1Interface interface {
@@ -70,7 +72,9 @@ func setConfigDefaults(config *rest.Config) error {
 	gv := v1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+
+	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+	// config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

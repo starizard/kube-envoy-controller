@@ -56,7 +56,7 @@ func (in *Envoy) DeepCopyObject() runtime.Object {
 func (in *EnvoyList) DeepCopyInto(out *EnvoyList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	in.ListMeta.DeepCopyInto(&out.ListMeta)
+	out.ListMeta = in.ListMeta
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]Envoy, len(*in))
