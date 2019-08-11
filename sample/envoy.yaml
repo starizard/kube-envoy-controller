@@ -1,0 +1,8 @@
+apiVersion: example.com/v1
+kind: Envoy
+metadata:
+  name: edge-envoy
+spec:
+  name: "envoy-1"
+  configMapName: "envoy-cfg-1"
+  replicas: 3
