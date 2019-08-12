@@ -144,6 +144,7 @@ func reconcile(envoy *v1.Envoy, namespace string, name string) error {
 		return nil
 	}
 	deploymentsClient := kubeclientset.AppsV1().Deployments(namespace)
+	svcClient := kubeclientset.CoreV1().Services(namespace)
 	deployment, err := deploymentsClient.Get(envoy.Spec.Name, metav1.GetOptions{})
 
 	if errors.IsNotFound(err) {
@@ -158,6 +159,11 @@ func reconcile(envoy *v1.Envoy, namespace string, name string) error {
 			envoyutils.UpdateStatus(clientset, envoy, namespace, deployment)
 			log.Printf("Updating deployments")
 		}
+	}
+	newServiceSpec := envoyutils.Service(envoy)
+	_, err = svcClient.Get(envoy.Spec.Name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		svcClient.Create(newServiceSpec)
 	}
 	return nil
 }

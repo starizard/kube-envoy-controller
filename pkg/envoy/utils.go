@@ -4,6 +4,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	v1 "github.com/starizard/kube-envoy-controller/pkg/api/example.com/v1"
 	client "github.com/starizard/kube-envoy-controller/pkg/client/clientset/versioned"
@@ -68,6 +69,29 @@ func Deployment(envoy *v1.Envoy) *appsv1.Deployment {
 		},
 	}
 	return deployment
+}
+
+//Service returns a spec for an envoy service
+func Service(envoy *v1.Envoy) *apiv1.Service {
+	service := &apiv1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: envoy.Spec.Name,
+		},
+		Spec: apiv1.ServiceSpec{
+			Ports: []apiv1.ServicePort{
+				apiv1.ServicePort{
+					Name:       "http",
+					Protocol:   "TCP",
+					Port:       80,
+					TargetPort: intstr.IntOrString{IntVal: 8080},
+				},
+			},
+			Selector: map[string]string{
+				"app": "envoy",
+			},
+		},
+	}
+	return service
 }
 
 //UpdateStatus updates the status of an envoy resource
