@@ -1,14 +1,13 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -46,7 +45,7 @@ func getConfig() *rest.Config {
 		config, err = rest.InClusterConfig()
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating client: %v", err)
+		log.Printf("error creating client: %v", err)
 		os.Exit(1)
 	}
 	return config
@@ -71,19 +70,16 @@ func main() {
 	informer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				fmt.Println("\nEnvoy Added\n")
 				enqueue(obj)
 
 			},
 			UpdateFunc: func(old interface{}, cur interface{}) {
 				if !reflect.DeepEqual(old, cur) {
-					fmt.Println("\nEnvoy updated\n")
 					enqueue(cur)
 
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				fmt.Println("\nEnvoy deleted\n")
 				enqueue(obj)
 			},
 		},
@@ -91,10 +87,10 @@ func main() {
 
 	// this starts all registered informers
 	sharedFactory.Start(stopCh)
-	fmt.Println("Informer Started..")
+	log.Println("Informer Started..")
 
 	if !cache.WaitForCacheSync(stopCh, informer.HasSynced) {
-		fmt.Println(("Error waiting for informer cache to sync"))
+		log.Println(("Error waiting for informer cache to sync"))
 	}
 
 	// Start controller loop
@@ -112,7 +108,7 @@ func work() {
 		var strKey string
 		var ok bool
 		if strKey, ok = key.(string); !ok {
-			fmt.Printf("\n Invalid key format %v", key)
+			log.Printf("\n Invalid key format %v", key)
 			return
 		}
 		processItem(strKey)
@@ -121,48 +117,46 @@ func work() {
 
 func processItem(key string) {
 	defer queue.Done(key)
-	fmt.Printf("\nProcessItem %v", key)
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		fmt.Printf("\nError splitting key into parts %v", err)
+		log.Printf("\nError splitting key into parts %v", err)
 		return
 	}
 
 	//retrieve the object
 	obj, err := sharedFactory.Example().V1().Envoys().Lister().Envoys(namespace).Get(name)
 	if err != nil {
-		fmt.Printf("\nError getting object %s %s from api %s", namespace, name, err)
+		log.Printf("\nError getting object %s %s from api %s", namespace, name, err)
 	}
 
 	//Reconcile expected state with current state
 	if err := reconcile(obj, namespace, name); err != nil {
-		fmt.Printf("\nError reconciling object %v", err)
+		log.Printf("\nError reconciling object %v", err)
 		return
 	}
 }
 
 func reconcile(envoy *v1.Envoy, namespace string, name string) error {
-	fmt.Printf("\n Processing Envoy %s, %d, %s", envoy.Spec.Name, *envoy.Spec.Replicas, envoy.Spec.ConfigMapName)
+	log.Printf("\n Processing Envoy %s, %d, %s", envoy.Spec.Name, *envoy.Spec.Replicas, envoy.Spec.ConfigMapName)
 	deploymentName := envoy.Spec.Name
 	if deploymentName == "" {
-		runtime.HandleError(fmt.Errorf("%s: deployment name must be specified", name))
+		log.Printf("%s: deployment name must be specified", name)
 		return nil
 	}
 	deploymentsClient := kubeclientset.AppsV1().Deployments(namespace)
 	deployment, err := deploymentsClient.Get(envoy.Spec.Name, metav1.GetOptions{})
 
 	if errors.IsNotFound(err) {
-		fmt.Printf("Deployment not found %v", err)
+		log.Printf("Deployment not found %v", err)
 		newDeploymentSpec := envoyutils.Deployment(envoy)
 		deployment, _ = deploymentsClient.Create(newDeploymentSpec)
 		envoyutils.UpdateStatus(clientset, envoy, namespace, deployment)
-		// TODO: update envoy status
 	}
 	if err == nil {
 		if envoy.Spec.Replicas != nil && *envoy.Spec.Replicas != *deployment.Spec.Replicas {
 			deployment, _ = deploymentsClient.Update(envoyutils.Deployment(envoy))
 			envoyutils.UpdateStatus(clientset, envoy, namespace, deployment)
-			fmt.Printf("Updating deployments")
+			log.Printf("Updating deployments")
 		}
 	}
 	return nil
@@ -171,7 +165,7 @@ func reconcile(envoy *v1.Envoy, namespace string, name string) error {
 func enqueue(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		fmt.Printf("Error obtaining key %v", err)
+		log.Printf("Error obtaining key %v", err)
 		return
 	}
 
