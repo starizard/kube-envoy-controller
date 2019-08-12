@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
-	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -20,6 +18,7 @@ import (
 	v1 "github.com/starizard/kube-envoy-controller/pkg/api/example.com/v1"
 	client "github.com/starizard/kube-envoy-controller/pkg/client/clientset/versioned"
 	factory "github.com/starizard/kube-envoy-controller/pkg/client/informers/externalversions"
+	envoyutils "github.com/starizard/kube-envoy-controller/pkg/envoy"
 )
 
 var (
@@ -72,19 +71,19 @@ func main() {
 	informer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				fmt.Println("Envoy Added")
+				fmt.Println("\nEnvoy Added\n")
 				enqueue(obj)
 
 			},
 			UpdateFunc: func(old interface{}, cur interface{}) {
 				if !reflect.DeepEqual(old, cur) {
-					fmt.Println("Envoy updated")
+					fmt.Println("\nEnvoy updated\n")
 					enqueue(cur)
 
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				fmt.Println("Envoy deleted")
+				fmt.Println("\nEnvoy deleted\n")
 				enqueue(obj)
 			},
 		},
@@ -128,7 +127,6 @@ func processItem(key string) {
 		fmt.Printf("\nError splitting key into parts %v", err)
 		return
 	}
-	fmt.Printf("\nProcessing key %s %s", namespace, name)
 
 	//retrieve the object
 	obj, err := sharedFactory.Example().V1().Envoys().Lister().Envoys(namespace).Get(name)
@@ -139,7 +137,6 @@ func processItem(key string) {
 	//Reconcile expected state with current state
 	if err := reconcile(obj, namespace, name); err != nil {
 		fmt.Printf("\nError reconciling object %v", err)
-
 		return
 	}
 }
@@ -152,56 +149,22 @@ func reconcile(envoy *v1.Envoy, namespace string, name string) error {
 		return nil
 	}
 	deploymentsClient := kubeclientset.AppsV1().Deployments(namespace)
-	_, err := deploymentsClient.Get(name, metav1.GetOptions{})
+	deployment, err := deploymentsClient.Get(envoy.Spec.Name, metav1.GetOptions{})
 
 	if errors.IsNotFound(err) {
-		deployment, _ := deploymentsClient.Create(newDeployment(envoy))
-		if envoy.Spec.Replicas != nil && *envoy.Spec.Replicas != *deployment.Spec.Replicas {
-			deployment, _ = deploymentsClient.Update(newDeployment(envoy))
-		}
+		fmt.Printf("Deployment not found %v", err)
+		newDeploymentSpec := envoyutils.Deployment(envoy)
+		deployment, _ = deploymentsClient.Create(newDeploymentSpec)
+
 		// TODO: update envoy status
 	}
-	return nil
-}
-
-//TODO: move to other file
-func newDeployment(envoy *v1.Envoy) *appsv1.Deployment {
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: envoy.Spec.Name,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: envoy.Spec.Replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "envoy",
-				},
-			},
-			Template: apiv1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app": "envoy",
-					},
-				},
-				Spec: apiv1.PodSpec{
-					Containers: []apiv1.Container{
-						{
-							Name:  "envoy",
-							Image: "envoyproxy/envoy:v1.10.0",
-							Ports: []apiv1.ContainerPort{
-								{
-									Name:          "http",
-									Protocol:      apiv1.ProtocolTCP,
-									ContainerPort: 80,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+	if err == nil {
+		if envoy.Spec.Replicas != nil && *envoy.Spec.Replicas != *deployment.Spec.Replicas {
+			_, _ = deploymentsClient.Update(envoyutils.Deployment(envoy))
+			fmt.Printf("Updating deployments")
+		}
 	}
-	return deployment
+	return nil
 }
 
 func enqueue(obj interface{}) {
