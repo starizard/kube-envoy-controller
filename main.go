@@ -155,12 +155,13 @@ func reconcile(envoy *v1.Envoy, namespace string, name string) error {
 		fmt.Printf("Deployment not found %v", err)
 		newDeploymentSpec := envoyutils.Deployment(envoy)
 		deployment, _ = deploymentsClient.Create(newDeploymentSpec)
-
+		envoyutils.UpdateStatus(clientset, envoy, namespace, deployment)
 		// TODO: update envoy status
 	}
 	if err == nil {
 		if envoy.Spec.Replicas != nil && *envoy.Spec.Replicas != *deployment.Spec.Replicas {
-			_, _ = deploymentsClient.Update(envoyutils.Deployment(envoy))
+			deployment, _ = deploymentsClient.Update(envoyutils.Deployment(envoy))
+			envoyutils.UpdateStatus(clientset, envoy, namespace, deployment)
 			fmt.Printf("Updating deployments")
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1 "github.com/starizard/kube-envoy-controller/pkg/api/example.com/v1"
+	client "github.com/starizard/kube-envoy-controller/pkg/client/clientset/versioned"
 )
 
 //Deployment returns a spec for an envoy deployment
@@ -46,4 +47,13 @@ func Deployment(envoy *v1.Envoy) *appsv1.Deployment {
 		},
 	}
 	return deployment
+}
+
+//UpdateStatus updates the status of an envoy resource
+func UpdateStatus(clientset client.Interface, envoy *v1.Envoy, namespace string, deployment *appsv1.Deployment) error {
+	updatedObj := envoy.DeepCopy()
+	updatedObj.Status.AvailableReplicas = deployment.Status.AvailableReplicas
+	//TODO: use .UpdateStatus()? Might need a subresource
+	_, err := clientset.ExampleV1().Envoys(namespace).Update(updatedObj)
+	return err
 }
