@@ -31,13 +31,34 @@ func Deployment(envoy *v1.Envoy) *appsv1.Deployment {
 				Spec: apiv1.PodSpec{
 					Containers: []apiv1.Container{
 						{
-							Name:  "envoy",
-							Image: "envoyproxy/envoy:v1.10.0",
+							Name:    "envoy",
+							Image:   "envoyproxy/envoy:v1.10.0",
+							Command: []string{"envoy"},
+							Args:    []string{"-c", "/etc/envoy.yaml"},
+							VolumeMounts: []apiv1.VolumeMount{
+								apiv1.VolumeMount{
+									Name:      "envoy-yaml",
+									MountPath: "/etc/envoy.yaml",
+									SubPath:   "envoy.yaml",
+								},
+							},
 							Ports: []apiv1.ContainerPort{
 								{
 									Name:          "http",
 									Protocol:      apiv1.ProtocolTCP,
-									ContainerPort: 80,
+									ContainerPort: 8080,
+								},
+							},
+						},
+					},
+					Volumes: []apiv1.Volume{
+						apiv1.Volume{
+							Name: "envoy-yaml",
+							VolumeSource: apiv1.VolumeSource{
+								ConfigMap: &apiv1.ConfigMapVolumeSource{
+									LocalObjectReference: apiv1.LocalObjectReference{
+										Name: envoy.Spec.ConfigMapName,
+									},
 								},
 							},
 						},
