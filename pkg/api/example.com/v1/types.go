@@ -18,11 +18,17 @@ type Envoy struct {
 }
 
 type EnvoySpec struct {
-	Name          string `json:"name"`
-	ConfigMapName string `json:"configMapName"`
-	Replicas      *int32 `json:"replicas"`
+	Name          string   `json:"name"`
+	ConfigMapName string   `json:"configMapName"`
+	Replicas      *int32   `json:"replicas"`
+	XDS           EnvoyXDS `json:"xds"`
 }
 
+type EnvoyXDS struct {
+	Name string `json:"name"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
 type EnvoyStatus struct {
 	AvailableReplicas int32 `json:"availableReplicas"`
 }
