@@ -6,3 +6,7 @@ spec:
   name: "envoy-1"
   configMapName: "envoy-cfg-1"
   replicas: 3
+  xds:
+    name: "xds_cluster"
+    host: "xds-service.default"
+    port: 19000
