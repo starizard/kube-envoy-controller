@@ -62,7 +62,6 @@ func createKubeClientSet() *kubernetes.Clientset {
 func main() {
 	clientset = createClientSet()
 	kubeclientset = createKubeClientSet()
-	// Create A shared informer factory, then use that factory to create a informer for your custom type
 	sharedFactory = factory.NewSharedInformerFactory(clientset, time.Second*30)
 	informer := sharedFactory.Example().V1().Envoys().Informer()
 
@@ -80,7 +79,7 @@ func main() {
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				enqueue(obj)
+				// enqueue(obj)
 			},
 		},
 	)
@@ -137,7 +136,6 @@ func processItem(key string) {
 }
 
 func reconcile(envoy *v1.Envoy, namespace string, name string) error {
-	log.Printf("\n Processing Envoy %s, %d, %s", envoy.Spec.Name, *envoy.Spec.Replicas, envoy.Spec.ConfigMapName)
 	deploymentName := envoy.Spec.Name
 	if deploymentName == "" {
 		log.Printf("%s: deployment name must be specified", name)
@@ -145,6 +143,15 @@ func reconcile(envoy *v1.Envoy, namespace string, name string) error {
 	}
 	deploymentsClient := kubeclientset.AppsV1().Deployments(namespace)
 	svcClient := kubeclientset.CoreV1().Services(namespace)
+	cfgClient := kubeclientset.CoreV1().ConfigMaps(namespace)
+
+	_, err := cfgClient.Get(envoy.Spec.ConfigMapName, metav1.GetOptions{})
+	newConfigmapSpec := envoyutils.ConfigMap(envoy)
+	if errors.IsNotFound(err) {
+		log.Printf("Configmap not found %v", err)
+		cfgClient.Create(newConfigmapSpec)
+	}
+
 	deployment, err := deploymentsClient.Get(envoy.Spec.Name, metav1.GetOptions{})
 
 	if errors.IsNotFound(err) {
